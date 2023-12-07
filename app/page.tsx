@@ -2,12 +2,26 @@
 
 import { useState } from 'react'
 import { Form } from './Form'
+import { Dropzone } from '@files-ui/react'
 
 const STEPS = {
 	INITIAL: 'INITIAL',
 	LOADING: 'LOADING',
 	PREVIEW: 'PREVIEW',
 	ERROR: 'ERROR',
+}
+
+async function* streamReader(res: Response) {
+	const reader = res.body?.getReader()
+	const decoder = new TextDecoder()
+	if (reader == null) return
+
+	while (true) {
+		const { done, value } = await reader?.read()
+		const chunk = decoder.decode(value)
+		yield chunk
+		if (done) break
+	}
 }
 
 export default function Home() {
@@ -29,14 +43,8 @@ export default function Home() {
 
 		setStep(STEPS.PREVIEW)
 
-		const reader = res.body.getReader()
-		const decoder = new TextDecoder()
-
-		while (true) {
-			const { done, value } = await reader.read()
-			const chunk = decoder.decode(value)
-			setResult((prevRes) => prevRes + chunk)
-			if (done) break
+		for await (const chunk of streamReader(res)) {
+			setResult((prev) => prev + chunk)
 		}
 	}
 	return (
@@ -72,7 +80,12 @@ export default function Home() {
 							<span className="sr-only">Loading...</span>
 						</div>
 					)}
-					{step === STEPS.INITIAL && <Form transformToCode={transformToCode} />}
+					{step === STEPS.INITIAL && (
+						<div className="flex flex-col gap-4">
+							<Dropzone />
+							<Form transformToCode={transformToCode} />
+						</div>
+					)}
 
 					{step === STEPS.PREVIEW && (
 						<div className="rounded border-gray-700">
